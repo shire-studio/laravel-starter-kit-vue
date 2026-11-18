@@ -16,15 +16,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  variants:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
+
+    outputs:
+      variants: ${{ steps.variants.outputs.variants }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Detect Variants
+        id: variants
+        run: |
+          if [ -f .starter-kit/teams/manifest.json ]; then
+            echo 'variants=["base","teams"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'variants=["base"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  ci:
+    name: ci (${{ matrix.variant }})
+    needs: variants
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJson(needs.variants.outputs.variants) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Prepare Variant
+        env:
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          set -o pipefail
+          if [ "$VARIANT" = "teams" ]; then
+            cp -Rp .starter-kit/teams/files/. .
+            jq -r '.deleted[]' .starter-kit/teams/manifest.json | while IFS= read -r file; do rm -f -- "$file"; done
+          fi
+          rm -rf .starter-kit
 
       - name: Setup PHP
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
@@ -123,5 +163,5 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: browser-screenshots
+          name: browser-screenshots-${{ matrix.variant }}
           path: tests/Browser/Screenshots

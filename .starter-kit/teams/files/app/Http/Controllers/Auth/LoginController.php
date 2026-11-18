@@ -1,0 +1,51 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Auth;
+
+use App\Actions\FindTeamInvitationContext;
+use App\Actions\LoginUser;
+use App\Data\TeamInvitationContextData;
+use App\Http\Requests\LoginRequest;
+use App\Models\TeamInvitation;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+use Inertia\Response;
+
+final readonly class LoginController
+{
+    public function index(Request $request, FindTeamInvitationContext $findTeamInvitationContext): Response
+    {
+        $status = $request->session()->get('status');
+
+        return Inertia::render('auth/Login', [
+            'canResetPassword' => Route::has('password.request'),
+            'canRegister' => true,
+            'status' => is_string($status) ? $status : null,
+            'teamInvitation' => ($invitation = $findTeamInvitationContext->handle(is_string($code = $request->query('invitation')) ? $code : null)) instanceof TeamInvitation
+                ? TeamInvitationContextData::fromInvitation($invitation)
+                : null,
+        ]);
+    }
+
+    public function store(LoginRequest $request, LoginUser $loginUser): RedirectResponse
+    {
+        $user = $request->validateCredentials();
+
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            $request->session()->put([
+                'login.id' => $user->getKey(),
+                'login.remember' => $request->boolean('remember'),
+            ]);
+
+            return to_route('two-factor.login');
+        }
+
+        $loginUser->handle($user, $request->boolean('remember'));
+
+        return redirect()->intended(route('dashboard', absolute: false));
+    }
+}
