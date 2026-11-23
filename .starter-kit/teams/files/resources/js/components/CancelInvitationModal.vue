@@ -34,8 +34,7 @@ const cancelInvitation = () => {
         <UiDialogTitle>Cancel invitation</UiDialogTitle>
         <UiDialogDescription>
           Are you sure you want to cancel the invitation for
-          <strong>{{ props.invitation?.email }}</strong
-          >?
+          <strong>{{ props.invitation?.email }}</strong>?
         </UiDialogDescription>
       </UiDialogHeader>
 
